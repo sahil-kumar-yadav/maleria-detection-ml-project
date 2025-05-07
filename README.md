@@ -268,8 +268,7 @@ Based on the provided model_metadata.h file and the context of the project, here
 
 ### **Model Overview**
 The project uses a **TensorFlow Lite (TFLite)** model for malaria detection. The model is designed to process **96x96 images** from a camera sensor and classify them into two categories: "Malaria Detected" or "No Malaria Detected."
-
-#### **Key Model Details**
+# **Key Model Details**
 1. **Input Dimensions**:
    ```cpp
    #define EI_CLASSIFIER_INPUT_WIDTH 96
@@ -395,3 +394,266 @@ While the exact architecture of the TensorFlow Lite model is not provided in the
 
 ### **Summary**
 The project uses a **TensorFlow Lite model** with a likely **Convolutional Neural Network (CNN)** architecture for malaria detection. The model processes **96x96 images** from a camera sensor, with preprocessing handled by DSP techniques. Key files include model_metadata.h for metadata, the TensorFlow Lite model file for inference, and DSP-related files for preprocessing. The entire pipeline is optimized for edge devices using quantization and efficient processing techniques.
+
+
+
+The provided code in ei_run_classifier.h and its related files outlines how the project classifies images using a **TensorFlow Lite (TFLite)** model. Below is a detailed explanation of the image classification process and the files involved.
+
+---
+
+### **How It Classifies Images**
+
+1. **Image Preprocessing**:
+   - The raw image data is preprocessed before being passed to the model. This includes:
+     - **Scaling**: The image pixel values are scaled to match the model's input requirements.
+       ```cpp
+       if (block->image_scaling == EI_CLASSIFIER_IMAGE_SCALING_0_255) {
+           int scale_res = numpy::scale(fmatrix, 1 / 255.0f);
+       }
+       ```
+     - **Mean Subtraction**: For certain scaling modes, the mean values (e.g., ImageNet mean) are subtracted from the pixel values.
+       ```cpp
+       else if (block->image_scaling == EI_CLASSIFIER_IMAGE_SCALING_BGR_SUBTRACT_IMAGENET_MEAN) {
+           for (size_t ix = 0; ix < fmatrix->rows * fmatrix->cols; ix += 3) {
+               float b = fmatrix->buffer[ix + 0];
+               fmatrix->buffer[ix + 0] = fmatrix->buffer[ix + 2] + tao_mean[2];
+               fmatrix->buffer[ix + 1] += tao_mean[1];
+               fmatrix->buffer[ix + 2] = b + tao_mean[0];
+           }
+       }
+       ```
+
+2. **Feature Extraction**:
+   - The preprocessed image data is converted into a feature matrix (`fmatrix`) that matches the input format of the TensorFlow Lite model.
+   - This feature matrix is passed to the model for inference.
+
+3. **Model Inference**:
+   - The TensorFlow Lite model is invoked to classify the image.
+     ```cpp
+     EI_IMPULSE_ERROR res = block.infer_fn(impulse, fmatrix, ix, (uint32_t*)block.input_block_ids, block.input_block_ids_size, result, block.config, debug);
+     ```
+   - The `infer_fn` function is responsible for running the model and generating predictions.
+
+4. **Post-Processing**:
+   - The raw output from the model is processed to generate human-readable classification results.
+   - For example, the probabilities for each class are extracted and displayed:
+     ```cpp
+     for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+         ei_printf("    %s: ", result->classification[ix].label);
+         ei_printf_float(result->classification[ix].value);
+         ei_printf("\n");
+     }
+     ```
+
+5. **Continuous Inference (Optional)**:
+   - If continuous inference is enabled, the system processes slices of data and maintains a rolling window of features for classification:
+     ```cpp
+     EI_IMPULSE_ERROR process_impulse_continuous(ei_impulse_handle_t *handle, signal_t *signal, ei_impulse_result_t *result, bool debug = false);
+     ```
+
+---
+
+### **Files Used for Image Classification**
+
+1. **`ei_run_classifier.h`**:
+   - **Filepath**: ei_run_classifier.h
+   - **Purpose**:
+     - Contains the main logic for running the classifier, including preprocessing, inference, and post-processing.
+     - Implements functions like `run_classifier`, `run_classifier_image_quantized`, and `process_impulse`.
+
+2. **`tflite_micro.h`**:
+   - **Filepath**: tflite_micro.h
+   - **Purpose**:
+     - Provides the TensorFlow Lite Micro interpreter for running the model on edge devices.
+     - Handles model loading, input/output tensor management, and inference execution.
+
+3. **`model_metadata.h`**:
+   - **Filepath**: model_metadata.h
+   - **Purpose**:
+     - Defines the model's input/output dimensions, scaling modes, and other metadata.
+     - Specifies the number of classes and their labels.
+
+4. **`image.hpp`**:
+   - **Filepath**: image.hpp
+   - **Purpose**:
+     - Provides image processing utilities, such as resizing and cropping.
+     - Used to prepare the raw image data for classification.
+
+5. **`ei_run_dsp.h`**:
+   - **Filepath**: ei_run_dsp.h
+   - **Purpose**:
+     - Handles Digital Signal Processing (DSP) tasks, such as feature extraction and scaling.
+     - Works in conjunction with ei_run_classifier.h to preprocess image data.
+
+6. **`tflite-model/`**:
+   - **Filepath**: tflite-model
+   - **Purpose**:
+     - Contains the TensorFlow Lite model file used for inference.
+     - The model is loaded and executed by the TensorFlow Lite Micro interpreter.
+
+7. **`ei_logging.h`**:
+   - **Filepath**: ei_logging.h
+   - **Purpose**:
+     - Provides logging utilities for debugging and displaying inference results.
+
+---
+
+### **Summary**
+The project classifies images by preprocessing the raw image data, extracting features, and running inference using a TensorFlow Lite model. The key files involved in this process include:
+
+- **`ei_run_classifier.h`**: Main classification logic.
+- **`tflite_micro.h`**: TensorFlow Lite Micro interpreter.
+- **`model_metadata.h`**: Model metadata and configuration.
+- **`image.hpp`**: Image preprocessing utilities.
+- **`tflite-model/`**: TensorFlow Lite model file.
+
+These components work together to process the input image, run the model, and generate classification results. Let me know if you'd like further details on any specific part!
+
+
+
+Great question! Let’s break down **how image processing and malaria detection happens after the camera scans an image**, **step by step**, in your embedded system using the **Edge Impulse SDK and TensorFlow Lite Micro (TFLM)**.
+
+---
+
+## 🧠 High-Level Workflow
+
+```
+[Camera] → [Image Preprocessing (DSP)] → [Feature Extraction] → [TFLite Model Inference] → [Malaria/Uninfected Output]
+```
+
+---
+
+## 🔍 Step-by-Step Breakdown
+
+### 🔹 1. **Image Capture from Camera**
+
+* The **camera module** (e.g., on Arduino Nano BLE Sense or Nicla Vision) captures an image of the **blood smear**.
+* This raw image is usually **RGB or grayscale**, depending on the sensor.
+* The image is passed to the program as a buffer (e.g., `uint8_t image[96][96]` for a 96×96 input).
+
+> ⚙️ Input size is defined by:
+
+```cpp
+#define EI_CLASSIFIER_INPUT_WIDTH 96
+#define EI_CLASSIFIER_INPUT_HEIGHT 96
+```
+
+---
+
+### 🔹 2. **Image Preprocessing**
+
+Before sending the image to the model, the system performs **preprocessing**:
+
+#### ✅ a. **Resizing** (if needed)
+
+* The image is resized to the model's expected input dimensions (usually 96×96).
+* This is handled by Edge Impulse's built-in image utility functions.
+
+#### ✅ b. **Scaling / Normalization**
+
+* The pixel values are **scaled**:
+
+  * For **quantized models**: values are scaled to **INT8 \[0–255]** or adjusted using zero-point/scale values.
+  * For example:
+
+    ```cpp
+    scale = input_tensor->params.scale;
+    zero_point = input_tensor->params.zero_point;
+    input_tensor->data.int8[i] = (pixel_value / 255.0) / scale + zero_point;
+    ```
+
+#### ✅ c. **Mean subtraction (optional)**
+
+* In some models, especially if trained on ImageNet, mean subtraction is used for normalization.
+* This shifts the pixel values to be centered around 0.
+
+---
+
+### 🔹 3. **Digital Signal Processing (DSP) Feature Extraction**
+
+* Implemented in files like `feature.hpp` and `ei_run_dsp.h`
+* The image is **converted to spectral features**, including:
+
+  * **FFT** – converts image signal (or pixel intensity signal) to frequency domain.
+  * **RMS / Skewness / Kurtosis** – used to describe the "shape" of signal distribution.
+  * **Wavelet Transform** – captures patterns across different resolutions.
+
+> These features help reduce image complexity and focus on **important diagnostic patterns** (e.g., parasite shapes).
+
+---
+
+### 🔹 4. **TensorFlow Lite Micro Inference**
+
+After feature extraction:
+
+1. Features are passed to the `.tflite` model stored in Flash (or embedded as `model.h`).
+2. TFLite interpreter processes the input:
+
+   ```cpp
+   interpreter->SetInputTensor(data);
+   interpreter->Invoke();
+   ```
+3. The model returns a prediction (e.g., `Class 0 = Uninfected`, `Class 1 = Infected`).
+
+> Model outputs an array like `[0.3, 0.7]` → meaning 70% confidence for "Infected".
+
+---
+
+### 🔹 5. **Post-processing and Output**
+
+* The model’s output is compared to a threshold (usually 0.6):
+
+  ```cpp
+  if (output[1] > 0.6) {
+      Serial.println("Malaria Detected ✅");
+  } else {
+      Serial.println("Uninfected ❌");
+  }
+  ```
+
+* Results can be:
+
+  * Displayed on a serial monitor.
+  * Shown on an OLED or LCD screen.
+  * Trigger actions (e.g., turn on LED/buzzer for infected samples).
+
+---
+
+## 📦 Example Visual Flow
+
+```
+[CAMERA] 
+    ↓ (96x96 image) 
+[PREPROCESSING] 
+    → Resize → Normalize/Scale → Spectral Transform (FFT/Wavelet) 
+    ↓
+[FEATURE VECTORS]
+    ↓
+[INFERENCE: TFLite Micro Model]
+    ↓
+[OUTPUT: "Infected" or "Uninfected"]
+```
+
+---
+
+## 🔁 Continuous Inference (Optional)
+
+If the system is always capturing frames (like a loop), it may:
+
+* Keep a **rolling buffer of images**
+* Infer every 1 second or after N frames
+* Run in `loop()` or `while(true)` in embedded C++
+
+---
+
+## ✅ Summary
+
+| Stage            | Action                                    |
+| ---------------- | ----------------------------------------- |
+| 📷 Image Capture | Camera captures a 96x96 image             |
+| 🧹 Preprocess    | Resize, normalize, quantize               |
+| ⚙️ DSP Features  | FFT, Wavelet, RMS, Skew, etc.             |
+| 🧠 Inference     | TFLite Micro model classifies features    |
+| 📢 Output        | Classification shown on Serial or Display |
+
+Would you like a **code sample** for how to handle camera → preprocess → inference in Arduino or PlatformIO?
