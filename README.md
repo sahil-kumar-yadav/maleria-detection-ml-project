@@ -260,3 +260,138 @@ The TensorFlow Lite model and its associated metadata are located in the followi
 ### Summary
 
 The project leverages a **TensorFlow Lite model**, likely a **Convolutional Neural Network (CNN)**, for real-time malaria detection on an edge device. The model is configured to process **96x96 camera images**, utilizes **INT8 quantization** for efficiency, and classifies the input into two categories ("Malaria Detected" or "No Malaria Detected") based on a **0.6 confidence threshold**. This approach is well-suited for resource-constrained environments, enabling on-device inference without relying on cloud connectivity.
+
+
+Based on the provided model_metadata.h file and the context of the project, here is a detailed explanation of the model, its layers, parameters, and the files used for processing:
+
+---
+
+### **Model Overview**
+The project uses a **TensorFlow Lite (TFLite)** model for malaria detection. The model is designed to process **96x96 images** from a camera sensor and classify them into two categories: "Malaria Detected" or "No Malaria Detected."
+
+#### **Key Model Details**
+1. **Input Dimensions**:
+   ```cpp
+   #define EI_CLASSIFIER_INPUT_WIDTH 96
+   #define EI_CLASSIFIER_INPUT_HEIGHT 96
+   #define EI_CLASSIFIER_INPUT_FRAMES 1
+   ```
+   - The model expects input images of size **96x96 pixels** with a single frame.
+
+2. **Output Classes**:
+   ```cpp
+   #define EI_CLASSIFIER_NN_OUTPUT_COUNT 2
+   #define EI_CLASSIFIER_LABEL_COUNT 2
+   ```
+   - The model has **2 output classes**:
+     - Class 0: No malaria detected.
+     - Class 1: Malaria detected.
+
+3. **Quantization**:
+   ```cpp
+   #define EI_CLASSIFIER_TFLITE_INPUT_DATATYPE EI_CLASSIFIER_DATATYPE_INT8
+   #define EI_CLASSIFIER_TFLITE_OUTPUT_DATATYPE EI_CLASSIFIER_DATATYPE_INT8
+   ```
+   - The model uses **INT8 quantization** for both input and output, which reduces the model size and improves inference speed.
+
+4. **Sensor Type**:
+   ```cpp
+   #define EI_CLASSIFIER_SENSOR EI_CLASSIFIER_SENSOR_CAMERA
+   ```
+   - The model is configured to process data from a **camera sensor**, confirming that it is image-based.
+
+5. **Classification Threshold**:
+   ```cpp
+   #define EI_CLASSIFIER_THRESHOLD 0.6
+   ```
+   - The model uses a confidence threshold of **0.6** for classification.
+
+---
+
+### **Model Architecture**
+While the exact architecture of the TensorFlow Lite model is not provided in the model_metadata.h file, the following assumptions can be made based on the context:
+
+1. **Input Layer**:
+   - Accepts a **96x96x1** image (grayscale or single-channel input).
+   - Preprocessing may include resizing, normalization, and quantization.
+
+2. **Convolutional Layers**:
+   - Extract spatial features such as edges, textures, and patterns from the input image.
+   - Likely includes ReLU activation functions and max-pooling layers for downsampling.
+
+3. **Fully Connected Layers**:
+   - Combines the extracted features to make predictions.
+   - Outputs probabilities for the two classes ("Malaria Detected" or "No Malaria Detected").
+
+4. **Output Layer**:
+   - A softmax layer provides the final classification probabilities.
+
+---
+
+### **Parameters Being Processed**
+1. **Image Data**:
+   - Input images are processed as **96x96 pixels**.
+   - Preprocessing includes resizing and quantization to INT8 format.
+
+2. **Spectral Features**:
+   - The model may use spectral features (e.g., FFT) as part of the preprocessing pipeline, as indicated by:
+     ```cpp
+     #define EI_CLASSIFIER_HAS_FFT_INFO 1
+     ```
+
+3. **Slices Per Window**:
+   ```cpp
+   #define EI_CLASSIFIER_SLICES_PER_MODEL_WINDOW 4
+   ```
+   - The input data is divided into **4 slices** for processing.
+
+4. **DSP Parameters**:
+   - The project uses DSP (Digital Signal Processing) for preprocessing, as indicated by:
+     ```cpp
+     #define EI_DSP_PARAMS_GENERATED 1
+     ```
+
+---
+
+### **Files Used for Processing**
+1. **Model Metadata**:
+   - **Filepath**: model_metadata.h
+   - **Purpose**: Defines the model's input/output dimensions, quantization, sensor type, and other metadata.
+
+2. **TensorFlow Lite Model**:
+   - **Filepath**: tflite-model
+   - **Purpose**: Contains the pre-trained TensorFlow Lite model used for inference.
+
+3. **DSP Implementation**:
+   - **Filepath**: dsp
+   - **Purpose**: Implements DSP preprocessing, including FFT, filtering, and feature extraction.
+
+4. **Feature Extraction**:
+   - **Filepath**: feature.hpp
+   - **Purpose**: Extracts spectral features from the input data.
+
+5. **Inference Code**:
+   - **Filepath**: Likely in src
+   - **Purpose**: Runs the TensorFlow Lite model on the preprocessed data and outputs predictions.
+
+---
+
+### **How the Processing Works**
+1. **Preprocessing**:
+   - Input images are resized to **96x96 pixels**.
+   - DSP techniques (e.g., FFT) are applied to extract spectral features if required.
+
+2. **Quantization**:
+   - The input data is quantized to **INT8** format for efficient processing.
+
+3. **Inference**:
+   - The preprocessed data is passed to the TensorFlow Lite model.
+   - The model processes the data through its layers (e.g., convolutional and fully connected layers).
+
+4. **Post-Processing**:
+   - The model's output probabilities are compared against the classification threshold (0.6) to determine the final prediction.
+
+---
+
+### **Summary**
+The project uses a **TensorFlow Lite model** with a likely **Convolutional Neural Network (CNN)** architecture for malaria detection. The model processes **96x96 images** from a camera sensor, with preprocessing handled by DSP techniques. Key files include model_metadata.h for metadata, the TensorFlow Lite model file for inference, and DSP-related files for preprocessing. The entire pipeline is optimized for edge devices using quantization and efficient processing techniques.
